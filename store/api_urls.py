@@ -1,7 +1,6 @@
 from rest_framework.routers import DefaultRouter
 from .views import CategoryViewSet, ProductViewSet, CheckoutView,  ReviewViewSet, OrderViewSet
 from django.urls import path, include
-from .views import mpesa_callback
 
 router = DefaultRouter()
 router.register(r'categories', CategoryViewSet, basename='category')
