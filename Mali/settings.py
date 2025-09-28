@@ -22,6 +22,8 @@ DEBUG = os.environ.get("DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = ["*"]  # Later restrict to your Render domain
 
+import os
+
 # Database
 DATABASES = {
     "default": dj_database_url.config(

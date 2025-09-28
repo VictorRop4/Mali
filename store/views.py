@@ -16,31 +16,6 @@ from .serializers import (
 )
 from .permissions import RolePermission
 from .pagination import StandardResultsSetPagination
-from .mpesa import initiate_stk_push, MpesaClient
-
-client = MpesaClient()
-response = client.stk_push(phone_number="254708374149", amount=10)
-
-import logging
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-
-logger = logging.getLogger(__name__)
-
-
-@api_view(["POST"])
-@permission_classes([AllowAny])  # Safaricom does not authenticate
-def mpesa_callback(request):
-    """
-    Receive STK push callback from Safaricom.
-    """
-    data = request.data
-    logger.info("M-Pesa Callback: %s", data)
-
-    # Example: Save to database or log
-    # You can parse request.data["Body"]["stkCallback"] for status and metadata
-
-    return Response({"ResultCode": 0, "ResultDesc": "Callback received successfully"}, status=status.HTTP_200_OK)
 
 
 # ------------------- CATEGORY -------------------
@@ -247,50 +222,3 @@ class CheckoutView(generics.GenericAPIView):
         })
     
 # ------------------- M-PESA CALLBACKS -------------------
-class MpesaCallbackView(APIView):
-    def post(self, request, *args, **kwargs):
-        data = request.data
-        transaction_id = data.get("Body", {}).get("stkCallback", {}).get("CheckoutRequestID")
-        result_code = data.get("Body", {}).get("stkCallback", {}).get("ResultCode")
-        amount = data.get("Body", {}).get("stkCallback", {}).get("CallbackMetadata", {}).get("Item", [{}])[0].get("Value")
-
-        try:
-            payment = Payment.objects.get(transaction_id=transaction_id)
-            if result_code == 0:
-                payment.status = "successful"
-                payment.paid_at = timezone.now()
-                payment.save()
-
-                order = payment.order
-                order.status = "paid"
-                order.save()
-            else:
-                payment.status = "failed"
-                payment.save()
-        except Payment.DoesNotExist:
-            pass
-
-        return Response({"status": "received"})
-
-
-class MpesaSTKPushView(APIView):
-    permission_classes = [RolePermission]
-    allowed_roles = [User.UserRole.CUSTOMER]
-    owner_field = "customer"
-
-    @swagger_auto_schema(
-        manual_parameters=[
-            openapi.Parameter("phone_number", openapi.IN_QUERY, description="Customer phone number (2547...)", type=openapi.TYPE_STRING),
-            openapi.Parameter("amount", openapi.IN_QUERY, description="Payment amount", type=openapi.TYPE_INTEGER),
-        ],
-        responses={200: "STK Push initiated successfully"}
-    )
-    def post(self, request):
-        phone = request.query_params.get("phone_number")
-        amount = request.query_params.get("amount")
-        if not phone or not amount:
-            return Response({"error": "phone_number and amount are required"}, status=400)
-
-        client = MpesaClient()
-        response = client.stk_push(phone, int(amount))
-        return Response(response)
